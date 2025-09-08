@@ -1,0 +1,17 @@
+# Logs
+logs
+*.log
+
+# Dependências
+node_modules
+
+# Arquivos de build e cache
+dist
+dist-ssr
+.vite
+.svelte-kit
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
