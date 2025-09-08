@@ -1,52 +1,77 @@
-// server.js VERSÃO COMPLETA E CORRETA
-
-import express from 'express';
-import cors from 'cors';
-import { ethers } from 'ethers';
-import axios from 'axios'; // Importa o axios para buscar o preço do ETH
+import express from "express";
+import cors from "cors";
+import { ethers } from "ethers";
+import axios from "axios";
 
 const app = express();
 app.use(cors());
 
-// Sua conexão com a Ethereum
-const provider = new ethers.JsonRpcProvider("https://mainnet.infura.io/v3/47d22dd525d84011a6a8abcd04429033");
+const supportedChains = {
+  ethereum: {
+    rpcUrl: "https://mainnet.infura.io/v3/47d22dd525d84011a6a8abcd04429033",
+    coinId: "ethereum",
+  },
+  polygon: {
+    rpcUrl: "https://polygon-rpc.com/",
+    coinId: "matic-network",
+  },
+};
 
-console.log("Servidor iniciado, conectando à rede Ethereum...");
+console.log("Servidor iniciado...");
 
-// A ROTA /api/stats QUE ESTAVA FALTANDO
-app.get('/api/stats', async (req, res) => {
+app.get("/api/stats/:chainName", async (req, res) => {
+  const { chainName } = req.params;
+  const chainConfig = supportedChains[chainName];
+
+  if (!chainConfig) {
+    return res.status(400).json({ error: `Rede não suportada: ${chainName}` });
+  }
+
+  console.log(`Buscando dados para a rede: ${chainName}`);
+
   try {
-    // 1. Busca todos os dados da blockchain e da API de preço
-    const [blockNumber, feeData, coingeckoResponse] = await Promise.all([
-      provider.getBlockNumber(),
+    const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+
+    const [latestBlock, feeData, coingeckoResponse] = await Promise.all([
+      provider.getBlock("latest"),
       provider.getFeeData(),
-      axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      axios.get(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${chainConfig.coinId}&vs_currencies=usd`
+      ),
     ]);
 
-    // 2. Extrai o preço do ETH da resposta
-    const ethPrice = coingeckoResponse.data.ethereum.usd;
+    const coinPrice = coingeckoResponse.data[chainConfig.coinId].usd;
 
-    // 3. Monta o objeto de resposta no formato exato que o React precisa
     const stats = {
-      blockNumber: blockNumber.toString(),
+      blockNumber: latestBlock.number.toString(),
+      timestamp: latestBlock.timestamp,
+      transactionCount: latestBlock.transactions.length,
       gasPrice: {
-        slow: parseFloat(ethers.formatUnits(feeData.gasPrice, 'gwei')).toFixed(2),
-        average: parseFloat(ethers.formatUnits(feeData.maxFeePerGas, 'gwei')).toFixed(2),
-        fast: parseFloat(ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')).toFixed(2)
+        slow: parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")).toFixed(
+          2
+        ),
+        average: parseFloat(
+          ethers.formatUnits(feeData.maxFeePerGas, "gwei")
+        ).toFixed(2),
+        fast: parseFloat(
+          ethers.formatUnits(feeData.maxPriorityFeePerGas, "gwei")
+        ).toFixed(2),
       },
-      ethPrice: ethPrice.toString()
+      ethPrice: coinPrice.toString(),
     };
 
-    // 4. Envia o objeto JSON completo
     res.json(stats);
-    
   } catch (error) {
-    console.error("Erro ao buscar dados on-chain:", error);
-    res.status(500).json({ error: 'Falha ao buscar dados da blockchain.' });
+    console.error(`Erro ao buscar dados para a rede ${chainName}:`, error);
+    res.status(500).json({
+      error: `Falha ao buscar dados da blockchain para a rede ${chainName}.`,
+    });
   }
 });
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}. O endpoint /api/stats está ativo.`);
+  console.log(
+    `Servidor rodando na porta ${PORT}. Endpoints dinâmicos estão ativos.`
+  );
 });
