@@ -2,13 +2,14 @@ import express from "express";
 import cors from "cors";
 import { ethers } from "ethers";
 import axios from "axios";
+import "dotenv/config";
 
 const app = express();
 app.use(cors());
 
 const supportedChains = {
   ethereum: {
-    rpcUrl: "https://mainnet.infura.io/v3/47d22dd525d84011a6a8abcd04429033",
+    rpcUrl: process.env.INFURA_API_KEY,
     coinId: "ethereum",
   },
   polygon: {
